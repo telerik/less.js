@@ -984,13 +984,13 @@ less.Parser = function Parser(env) {
                 // the `{...}` block.
                 //
                 definition: function () {
-                    var name, params = [], match, ruleset, param, value, cond;
+                    var name, params = [], match, ruleset, param, value, cond, variadic = false;
                     if ((input.charAt(i) !== '.' && input.charAt(i) !== '#') ||
                         peek(/^[^{]*(;|})/)) return;
 
                     save();
 
-                    if (match = $(/^([#.](?:[\w-]|\\(?:[a-fA-F0-9]{1,6} ?|[^a-fA-F0-9]))+)\s*\(/)) {
+                    if (match = $(/^([#.](?:[\w-]|\\(?:[A-Fa-f0-9]{1,6} ?|[^A-Fa-f0-9]))+)\s*\(/)) {
                         name = match[1];
 
                         do {
@@ -1028,7 +1028,7 @@ less.Parser = function Parser(env) {
                         ruleset = $(this.block);
 
                         if (ruleset) {
-                            return new(tree.mixin.Definition)(name, params, ruleset, cond);
+                            return new(tree.mixin.Definition)(name, params, ruleset, cond, variadic);
                         } else {
                             restore();
                         }
@@ -1548,8 +1548,9 @@ tree.functions = {
         return this.rgba(r, g, b, 1.0);
     },
     rgba: function (r, g, b, a) {
-        var rgb = [r, g, b].map(function (c) { return number(c) });
-        return new(tree.Color)(rgb, number(a));
+        var rgb = [r, g, b].map(function (c) { return number(c) }),
+            a = number(a);
+        return new(tree.Color)(rgb, a);
     },
     hsl: function (h, s, l) {
         return this.hsla(h, s, l, 1.0);
@@ -3618,8 +3619,6 @@ tree.jsify = function (obj) {
         return obj.toCSS(false);
     }
 };
-tree.skiplist = {};
-tree.mixinlist = {};
 tree.prefix = "";
 
 })(require('./tree'));
