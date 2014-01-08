@@ -251,7 +251,8 @@ less.Parser = function Parser(env) {
     }
 
     function expect(arg, msg) {
-        var result = (typeof arg === "function") ? arg.call(parsers) : $(arg);
+        // check if it is a function or a regexp (some older browsers don't give 'function' on typeof RegExp)
+        var result = (Object.prototype.toString.call(arg) === '[object Function]') ? arg.call(parsers) : $(arg);
         if (result) {
             return result;
         }
@@ -1978,6 +1979,7 @@ less.Parser.serializeVars = function(vars) {
 
     return s;
 };
+
 (function (tree) {
 
 tree.functions = {
@@ -2419,7 +2421,7 @@ tree.functions = {
         buf = useBase64 ? buf.toString('base64')
                         : encodeURIComponent(buf);
 
-        var uri = "'data:" + mimetype + ',' + buf + "'";
+        var uri = "\"data:" + mimetype + ',' + buf + "\"";
         return new(tree.URL)(new(tree.Anonymous)(uri));
     },
 
@@ -2498,6 +2500,76 @@ tree.functions = {
 
         returner = "'data:image/svg+xml" + (useBase64 ? ";base64" : "") + "," + returner + "'";
         return new(tree.URL)(new(tree.Anonymous)(returner));
+    },
+    "linear-gradient": function (/* arg, arg, ...*/) {
+        var prefix = arguments[0].value ? "-" + arguments[0].value + "-" : "", i, len, lastIndex = 0, output = "";
+
+        arguments = arguments.length > 2 ? arguments : arguments[1].value;
+
+        for(i = 1, len = arguments.length; i < len; i++) {
+            if ((arguments[i].value && typeof arguments[i].value == "string") || i == len-1) {
+                var args = Array.prototype.slice.call(arguments, lastIndex + 1, i == len-1 ? i + 1 : i),
+
+                    firstArg = arguments[lastIndex].value,
+                    direction = arguments[lastIndex] instanceof tree.Expression ?
+                                        [ directions[firstArg[0].value], directions[ firstArg[1].value ], firstArg[0].value + " " + firstArg[1].value ] :
+                                        /left|right/.test(firstArg) ?
+                                                [ directions[ firstArg ], directions[ "center" ], firstArg ] :
+                                                [ directions[ "center" ], directions[ firstArg ], firstArg ],
+                    directionStart = direction[0].value + " " + direction[1].value,
+                    directionEnd = direction[0].limit + " " + direction[1].limit,
+                    initial = prefix == "-webkit-" ? "gradient(linear, " + directionStart + ", " + directionEnd : "linear-gradient(" + direction[2];
+
+                output += prefix + getGradient(args, initial, prefix == "-webkit-") + ",";
+
+                lastIndex = i;
+            }
+        }
+
+        return new(tree.Anonymous)(output.substring(0, output.length-1));
+    }
+};
+
+function getGradient (args, initial, isWebKit) {
+    var result = initial;
+
+    for (var i = 0, len = args.length; i < len; i++) {
+        var stop = args[i], dimension, rgba;
+
+        if (stop instanceof tree.Color) {
+            rgba = "," + stop.toCSS().replace(/ /g, "");
+            result += isWebKit ? ", color-stop(" + (i==0 ? "0" : "1" ) + rgba.replace("transparent", "rgba(0,0,0,0)") + ")" : rgba;
+        } else {
+            dimension = stop.value[1];
+            stop = stop.value[0];
+            rgba = "," + stop.toCSS().replace(/ /g, "");
+            result += isWebKit ? ", color-stop(" + (dimension.value/100) + rgba.replace("transparent", "rgba(0,0,0,0)") + ")" : rgba + " " + dimension.toCSS();
+        }
+    }
+
+   return result + ")";
+}
+
+var directions = {
+    top: {
+        value: "0",
+        limit: "100%"
+    },
+    bottom: {
+        value: "100%",
+        limit: "0"
+    },
+    left: {
+        value: "0",
+        limit: "100%"
+    },
+    right: {
+        value: "100%",
+        limit: "0"
+    },
+    center: {
+        value: "50%",
+        limit: "50%"
     }
 };
 
@@ -2661,7 +2733,7 @@ function initFunctions() {
     
     // default
     f = tree.defaultFunc;
-    tf.default = f.eval.bind(f);
+    tf["default"] = f.eval.bind(f);
     
 } initFunctions();
 
